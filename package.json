@@ -1,0 +1,14 @@
+{
+  "name": "keccak-degree-lab",
+  "version": "1.0.0",
+  "description": "MILP-based algebraic degree propagation lab for Keccak-f",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "dependencies": {
+    "express": "^4.22.2",
+    "pulp": "^9.1.0",
+    "sys": "^0.0.1"
+  }
+}

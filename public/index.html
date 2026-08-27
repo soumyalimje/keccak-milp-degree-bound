@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Keccak-f Degree Lab · MILP Propagation Analysis</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="grid-backdrop" aria-hidden="true"></div>
+
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <header class="hero">
+    <div class="hero-eyebrow">
+      <!-- <span class="dot"></span> IIT BHILAI &middot; CRYPTANALYSIS INTERNSHIP -->
+    </div>
+    <h1 class="hero-title">
+      Keccak<span class="f">-f</span> Degree<br>Propagation <span class="accent">Lab</span>
+    </h1>
+    <!-- <p class="hero-sub">
+      Bit-level division-property MILP tracking of algebraic degree growth through θ, χ, ρ &amp; π —
+      a <em>tight upper bound</em> on the true degree, computed round by round instead of via naive doubling.
+    </p> -->
+  </header>
+
+  <!-- ============ STATE PARAMETERS + CONTROLS ============ -->
+  <section class="panel" id="controls-panel">
+    <div class="panel-head">
+      <span class="panel-num">01</span>
+      <h2>State Parameters</h2>
+      <p>Select either the 50-bit permutation lane setup to run the verification loops.</p>
+    </div>
+
+    <div class="controls-grid">
+
+      <div class="field">
+        <label for="lane-size">Lane size · w</label>
+        <select id="lane-size">
+            <option value="1">w = 1 (b=25)</option>
+            <option value="2" selected>w = 2 (toy, b=50)</option>
+            <option value="4">w = 4 (b=100)</option>
+            <option value="8">w = 8 (b=200)</option>
+            <option value="16">w = 16 (b=400)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="rounds">Rounds to track</label>
+        <input type="number" id="rounds" min="1" max="20" value="4">
+      </div>
+
+      <div class="field field-run">
+        <label class="invisible-label">Run</label>
+        <button id="run-btn" class="run-btn">
+          <span class="run-btn-text">Run MILP Solver</span>
+          <span class="run-btn-spinner" aria-hidden="true"></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="state-readout" id="state-readout">
+      <div class="stat">
+        <span class="stat-label">Total width · b</span>
+        <span class="stat-value" id="stat-b">50</span>
+        <span class="stat-unit">bits</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Max degree · b&minus;1</span>
+        <span class="stat-value" id="stat-max">49</span>
+        <span class="stat-unit">saturation point</span>
+      </div>
+      <!-- <div class="stat">
+        <span class="stat-label">Rate / Capacity presets</span>
+        <span class="stat-value stat-rc" id="stat-rc">r=25 · c=25</span>
+        <span class="stat-unit">r + c = b (illustrative)</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">Variant class</span>
+        <span class="stat-value stat-variant" id="stat-variant">Toy permutation</span>
+        <span class="stat-unit">per Bertoni et&nbsp;al.</span>
+      </div> -->
+    </div>
+  </section>
+
+  <!-- ============ SIGNATURE: LANE STATE VISUALIZATION ============ -->
+  <!-- <section class="panel" id="lane-panel">
+    <div class="panel-head">
+      <span class="panel-num">02</span>
+      <h2>State Array Saturation</h2>
+      <p>The 5×5 sheet of lanes that makes up the Keccak state. Each cell brightens with that round's degree ratio — a full sheet means the permutation has saturated.</p>
+    </div>
+    <div class="lane-stage">
+      <div class="lane-grid" id="lane-grid" role="img" aria-label="Keccak 5 by 5 lane state, brightness indicates degree saturation"></div>
+      <div class="lane-meta">
+        <div class="lane-round-indicator">
+          <span class="lane-round-label">Round</span>
+          <span class="lane-round-value" id="lane-round-value">&mdash;</span>
+        </div>
+        <input type="range" id="round-scrub" min="0" max="16" value="0" disabled>
+        <p class="lane-hint">Scrub through rounds once results are computed.</p>
+      </div>
+    </div>
+  </section> -->
+
+  <!-- ============ RESULTS TABLE ============ -->
+  <section class="panel" id="results-panel">
+    <div class="panel-head">
+      <span class="panel-num">03</span>
+      <h2>Round-by-Round Degree Table</h2>
+      <p>MILP upper bound vs. the Boura et&nbsp;al. (2011) forward bound (used here as a sanity ceiling — our bound should never exceed it), with zero-sum distinguisher complexity per round.</p>
+    </div>
+
+    <div id="saturation-alert" class="saturation-alert hidden">
+      <span class="alert-icon">⚡</span>
+      <span>Degree has reached <strong id="alert-b-minus-1">b&minus;1</strong> &mdash; maximum algebraic complexity. Further rounds add no distinguishing power.</span>
+    </div>
+
+    <div class="table-wrap">
+      <table id="results-table">
+        <thead>
+          <tr>
+            <th>Round</th>
+            <th>MILP Upper Bound<span class="th-sub">(division property)</span></th>
+            <th>Reference Bound<span class="th-sub">(Boura et&nbsp;al., sanity ceiling)</span></th>
+            <th>Distinguisher Complexity<span class="th-sub">2<sup>d+1</sup></span></th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="results-body">
+          <tr class="empty-row">
+            <td colspan="5">Run the solver.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+
+
+<!-- ============ VERIFICATION PANEL ============ -->
+<section class="panel" id="verification-panel">
+  <div class="panel-head">
+    <span class="panel-num">04</span>
+    <h2>Independent Verification</h2>
+    <p>Our CP-SAT result recomputed against the actual Boura&ndash;Canteaut&ndash;De Canni&egrave;re closed-form bound (not the naive doubling ceiling above)
+       <!-- &mdash; same formula, computed independently in this browser. --></p>
+  </div>
+
+  <p class="citation">
+    Source: C. Boura, A. Canteaut, C. De Canni&egrave;re &mdash;
+    <em>&ldquo;Higher-order differential properties of Keccak and Luffa&rdquo;</em>, FSE 2011.
+    <a href="https://eprint.iacr.org/2010/589" target="_blank" rel="noopener">eprint.iacr.org/2010/589</a>
+  </p>
+
+  <div class="table-wrap">
+    <table id="verification-table">
+      <thead>
+        <tr>
+          <th>Round</th>
+          <th>Our CP-SAT Result</th>
+          <th>Boura et&nbsp;al. Formula<span class="th-sub">(&gamma;=3, computed live)</span></th>
+          <th>Match</th>
+        </tr>
+      </thead>
+      <tbody id="verification-body">
+        <tr class="empty-row"><td colspan="4">Run the solver.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" id="zerosum-panel">
+  <div class="panel-head">
+    <span class="panel-num">05</span>
+    <h2>Zero-Sum Distinguisher (rounds 1&ndash;4)</h2>
+    <!-- <p>Runs the <em>real</em> &theta;/&rho;/&pi;/&chi;/&iota; cipher (not the abstract solver model) over a (d+1)-dimensional input subspace and XOR-sums the output. Theory guarantees 0 &mdash; this confirms our CP-SAT degree is consistent with the literal cipher, not just the constraint model.</p>
+  </div> -->
+  </div>
+  <div class="table-wrap">
+    <table id="zerosum-table">
+      <thead>
+        <tr>
+          <th>Round</th>
+          <th>Degree</th>
+          <th>Dimension Tested<span class="th-sub">(d+1)</span></th>
+          <th>Subspace Size</th>
+          <th>Result</th>
+        </tr>
+      </thead>
+      <tbody id="zerosum-body">
+        <tr class="empty-row"><td colspan="5">Run the solver.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+
+
+  <!-- ============ PROPAGATION RULES REFERENCE ============ -->
+  <section class="panel" id="rules-panel">
+    <div class="panel-head">
+      <span class="panel-num">04</span>
+      <h2>Algebraic Propagation Rules</h2>
+      <p>The constraint logic the backend MILP model will encode, step-mapping onto Keccak's five internal transformations.</p>
+    </div>
+
+    <div class="rules-grid">
+      <div class="rule-card">
+        <span class="rule-glyph">&theta;</span>
+        <h3>Theta</h3>
+        <p>Linear column XOR. Modeled bit-by-bit with standard <code>COPY</code> / <code>XOR</code> division-trail rules &mdash; not a simple <code>max</code>, so fan-out and cancellation are tracked exactly at trail level.</p>
+      </div>
+      <div class="rule-card">
+        <span class="rule-glyph">&rho;&pi;</span>
+        <h3>Rho &amp; Pi</h3>
+        <p>Pure bit permutation &mdash; lanes rotate and translate. Just re-indexing in the model; degree is carried unchanged, no new constraints.</p>
+      </div>
+      <div class="rule-card rule-card-highlight">
+        <span class="rule-glyph">&chi;</span>
+        <h3>Chi</h3>
+        <p>The only nonlinear step. Modeled via the exact 5-bit division-trail table for <code>y_i = x_i &oplus; x_i+1 &oplus; x_i+1&middot;x_i+2</code> &mdash; not the naive <code>max(deg A, deg B+deg C)</code> additive rule, which overcounts shared variables.</p>
+      </div>
+      <div class="rule-card">
+        <span class="rule-glyph">&iota;</span>
+        <h3>Iota</h3>
+        <p>Round-constant XOR. Constants add no degrees of freedom to a monomial trail, so this step is not modeled &mdash; it only breaks symmetry between rounds.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- <footer class="foot">
+    <p>
+      Frontend framework &middot; values are computed dynamically once connected to the Express + Python 
+      (<code>division_property_milp.py</code>) execution bridge. The backend computes a rigorous <strong>upper bound</strong> 
+      on algebraic degree via bit-level division-property MILP. Framework limited strictly to 50 and 100-bit permutations.
+    </p>
+  </footer> -->
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
